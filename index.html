@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gói Con Tim Làm Quà - Code Player</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #0b0c10;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Fira Code', monospace;
+      color: #e0e0e0;
+    }
+
+    /* Khung chuẩn tỷ lệ dọc 9:16 trên điện thoại */
+    .app-container {
+      width: 100vw;
+      max-width: 420px;
+      height: 100vh;
+      max-height: 880px;
+      background: #181a1f;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 0 30px rgba(0,0,0,0.8);
+      border-radius: 12px;
+    }
+
+    /* --- NỬA TRÊN: PIXEL SCENE --- */
+    .scene-view {
+      position: relative;
+      width: 100%;
+      height: 42%;
+      background: #111217;
+      overflow: hidden;
+      border-bottom: 2px solid #282c34;
+    }
+    canvas#pixelCanvas {
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated;
+    }
+    .bubble {
+      position: absolute;
+      background: #fff;
+      color: #111;
+      padding: 6px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+      white-space: nowrap;
+      transition: all 0.3s ease;
+      opacity: 0;
+      transform: translateY(5px);
+      pointer-events: none;
+    }
+    .bubble::after {
+      content: '';
+      position: absolute;
+      bottom: -6px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-width: 6px 6px 0;
+      border-style: solid;
+      border-color: #fff transparent;
+    }
+    .bubble.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    #bubbleBoy { top: 22%; left: 16%; }
+    #bubbleGirl { top: 22%; right: 16%; }
+
+    /* --- NỬA DƯỚI: CODE EDITOR --- */
+    .editor-view {
+      position: relative;
+      width: 100%;
+      height: 58%;
+      background: #1e1e24;
+      display: flex;
+      flex-direction: column;
+    }
+    .editor-header {
+      padding: 12px 16px 8px;
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      border-bottom: 1px solid #282a36;
+    }
+    .editor-header .title {
+      color: #61afef;
+      font-weight: 700;
+    }
+    .editor-header .marquee {
+      color: #abb2bf;
+    }
+
+    .code-body {
+      flex: 1;
+      overflow-y: hidden;
+      padding: 8px 0;
+      font-size: 13.5px;
+      line-height: 1.8;
+      position: relative;
+    }
+
+    .code-line {
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      position: relative;
+      white-space: pre;
+    }
+    .code-line.active {
+      background-color: rgba(97, 175, 239, 0.15);
+    }
+    .code-line .line-num {
+      width: 28px;
+      color: #5c6370;
+      text-align: right;
+      margin-right: 14px;
+      user-select: none;
+      font-size: 12px;
+    }
+    .code-line .pointer {
+      position: absolute;
+      left: 20px;
+      color: #61afef;
+      font-size: 11px;
+      display: none;
+    }
+    .code-line.active .pointer {
+      display: inline-block;
+    }
+
+    /* Syntax Highlighting */
+    .kw { color: #c678dd; font-weight: 600; }     /* tím: async, function, const, await, while, return */
+    .fn { color: #61afef; }                        /* xanh dương: tên hàm */
+    .vr { color: #e06c75; }                        /* đỏ nhạt: tên biến */
+    .op { color: #56b6c2; }                        /* toán tử: =, += */
+    .str { color: #98c379; }                       /* xanh lá: chuỗi */
+    .num { color: #d19a66; }                       /* cam: số */
+    .txt { color: #abb2bf; }
+
+    /* Footer: Status bar */
+    .editor-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      font-size: 11.5px;
+      color: #828997;
+      background: #181a1f;
+      border-top: 1px solid #282a36;
+      cursor: pointer;
+    }
+    .editor-footer:hover {
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Scene Nửa Trên -->
+    <div class="scene-view">
+      <canvas id="pixelCanvas"></canvas>
+      <div id="bubbleBoy" class="bubble">anh thích em</div>
+      <div id="bubbleGirl" class="bubble">ừ, em đồng ý</div>
+    </div>
+
+    <!-- Khung Code Nửa Dưới -->
+    <div class="editor-view">
+      <div class="editor-header">
+        <span class="title">Gói Con Tim Làm Quà</span>
+        <span class="marquee"> • Trần Hoàng Nguyên • karaoke mode</span>
+      </div>
+
+      <div class="code-body" id="codeContainer"></div>
+
+      <div class="editor-footer" id="playBtn">
+        <span id="timeTracker">♪ 0:00 / 0:46</span>
+        <span>karaoke: on (nhấn phím cách để Play/Pause)</span>
+      </div>
+    </div>
+  </div>
+
+  <audio id="audioTrack" src="audio.mp3" preload="auto"></audio>
+
+  <script>
+    // 1. DỮ LIỆU ĐOẠN CODE & TIMELINE THEO BÀI HÁT
+    const codeLines = [
+      { num: 1, html: '<span class="kw">async function</span> <span class="fn">goiConTim</span>(<span class="vr">em</span>) {' },
+      { num: 2, html: '  <span class="kw">const</span> <span class="vr">chanThanh</span> <span class="op">=</span> <span class="fn">gather</span>(<span class="num">20</span>);', start: 0, end: 2, boy: 'anh thích em' },
+      { num: 3, html: '  <span class="kw">const</span> <span class="vr">moi</span> <span class="op">=</span> <span class="kw">await</span> <span class="fn">doi</span>(<span class="vr">chanThanh</span>);', start: 2, end: 6, boy: 'em cười đẹp lắm' },
+      { num: 4, html: '  <span class="kw">if</span> (!<span class="vr">em</span>.<span class="vr">dongY</span>) <span class="kw">return</span> <span class="fn">cho</span>();', start: 6, end: 14, boy: 'em đồng ý nhé?' },
+      { num: 5, html: '' },
+      { num: 6, html: '  <span class="kw">const</span> <span class="vr">hoa</span> <span class="op">=</span> <span class="kw">await</span> <span class="vr">em</span>.<span class="fn">trao</span>(<span class="str">"hoa"</span>);', start: 14, end: 17, girlFlower: true },
+      { num: 7, html: '  <span class="kw">const</span> <span class="vr">qua</span> <span class="op">=</span> <span class="fn">goi</span>(<span class="vr">conTim</span>, <span class="vr">hoa</span>);', start: 17, end: 21, boy: 'anh gói con tim làm quà' },
+      { num: 8, html: '' },
+      { num: 9, html: '  <span class="kw">while</span> (<span class="vr">hoa</span>.<span class="vr">tanUa</span>) {', start: 21, end: 24, boy: 'sợ hoa tàn mất...' },
+      { num: 10, html: '    <span class="vr">qua</span>.<span class="vr">nhipDap</span> <span class="op">+=</span> <span class="fn">tick</span>();', start: 24, end: 28, hearts: true },
+      { num: 11, html: '  }' },
+      { num: 12, html: '' },
+      { num: 13, html: '  <span class="kw">await</span> <span class="vr">em</span>.<span class="fn">veDay</span>();', start: 28, end: 32, boy: 'về đây với anh', hug: true },
+      { num: 14, html: '  <span class="kw">const</span> <span class="vr">tay</span> <span class="op">=</span> <span class="fn">giu</span>(<span class="vr">em</span>, <span class="vr">chatHon</span>);', start: 32, end: 36, girl: '...' },
+      { num: 15, html: '  <span class="kw">if</span> (<span class="vr">cachRoi</span>) <span class="kw">return</span> <span class="fn">khong</span>(<span class="vr">tay</span>);', start: 36, end: 39, boy: 'mãi mãi nhé?' },
+      { num: 16, html: '  <span class="kw">return</span> <span class="fn">nangNiu</span>(<span class="vr">em</span>, <span class="vr">suotDoi</span>);', start: 39, end: 46, girl: 'ừ, em đồng ý', hearts: true },
+      { num: 17, html: '}' }
+    ];
+
+    // Dựng DOM các dòng code
+    const container = document.getElementById('codeContainer');
+    codeLines.forEach((item, index) => {
+      const lineDiv = document.createElement('div');
+      lineDiv.className = 'code-line';
+      lineDiv.id = `line-${index}`;
+      lineDiv.innerHTML = `
+        <span class="pointer">▶</span>
+        <span class="line-num">${item.num}</span>
+        <span class="code-text">${item.html}</span>
+      `;
+      container.appendChild(lineDiv);
+    });
+
+    // 2. CANVAS PIXEL ART ENGINE
+    const canvas = document.getElementById('pixelCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 300;
+    canvas.height = 200;
+
+    let boyX = 70, girlX = 230;
+    let targetBoyX = 70, targetGirlX = 230;
+    let showFlower = false;
+    let showHearts = false;
+    let tickCount = 0;
+
+    ctx.imageSmoothingEnabled = false;
+
+    const stars = Array.from({ length: 34 }, () => ({
+      x: Math.floor(Math.random() * canvas.width),
+      y: Math.floor(Math.random() * 105),
+      size: Math.random() > 0.82 ? 2 : 1,
+      phase: Math.floor(Math.random() * 30)
+    }));
+
+    function drawPine(x, baseY, scale = 1) {
+      const block = 5 * scale;
+      ctx.fillStyle = '#172b35';
+      ctx.fillRect(x - block, baseY - 12 * scale, block * 2, 14 * scale);
+      ctx.fillRect(x - block * 2, baseY - 21 * scale, block * 4, 12 * scale);
+      ctx.fillRect(x - block * 3, baseY - 30 * scale, block * 6, 12 * scale);
+      ctx.fillRect(x - block * 4, baseY - 39 * scale, block * 8, 12 * scale);
+      ctx.fillStyle = '#694b50';
+      ctx.fillRect(x - 2 * scale, baseY, 4 * scale, 7 * scale);
+    }
+
+    function drawLantern(x, y) {
+      ctx.fillStyle = '#26323c';
+      ctx.fillRect(x - 1, y + 7, 3, 13);
+      ctx.fillRect(x - 5, y + 18, 11, 2);
+      ctx.fillStyle = '#d18b58';
+      ctx.fillRect(x - 5, y, 11, 2);
+      ctx.fillRect(x - 4, y + 2, 9, 8);
+      ctx.fillStyle = '#ffe6a3';
+      ctx.fillRect(x - 2, y + 3, 5, 6);
+      ctx.fillStyle = '#d18b58';
+      ctx.fillRect(x - 5, y + 10, 11, 2);
+    }
+
+    function drawBackground() {
+      ctx.fillStyle = '#182440';
+      ctx.fillRect(0, 0, 300, 200);
+      ctx.fillStyle = '#202c4a';
+      ctx.fillRect(0, 48, 300, 38);
+      ctx.fillStyle = '#34415b';
+      ctx.fillRect(0, 86, 300, 30);
+
+      // Dãy núi bậc thang và ánh trăng dịu phía sau hồ.
+      ctx.fillStyle = '#293650';
+      ctx.fillRect(0, 104, 300, 19);
+      ctx.fillRect(17, 96, 38, 8);
+      ctx.fillRect(25, 88, 23, 8);
+      ctx.fillRect(34, 80, 8, 8);
+      ctx.fillRect(139, 100, 49, 9);
+      ctx.fillRect(149, 91, 30, 9);
+      ctx.fillRect(158, 83, 13, 8);
+
+      ctx.fillStyle = 'rgba(255, 220, 153, 0.08)';
+      ctx.fillRect(222, 12, 34, 34);
+      ctx.fillStyle = '#f6d99a';
+      ctx.fillRect(230, 17, 20, 20);
+      ctx.fillRect(226, 21, 28, 12);
+      ctx.fillStyle = '#d8bd83';
+      ctx.fillRect(235, 20, 4, 4);
+      ctx.fillRect(244, 28, 3, 3);
+
+      ctx.fillStyle = '#fff0c2';
+      stars.forEach((star, index) => {
+        if ((tickCount + star.phase) % 36 > 5) {
+          ctx.fillRect(star.x, star.y, star.size, star.size);
+        }
+      });
+
+      // Mây vuông và những mái nhà nhỏ ở đường chân trời.
+      ctx.fillStyle = '#46516a';
+      ctx.fillRect(37, 40, 25, 5);
+      ctx.fillRect(43, 35, 14, 5);
+      ctx.fillRect(112, 61, 31, 5);
+      ctx.fillRect(119, 56, 16, 5);
+      ctx.fillStyle = '#202b43';
+      ctx.fillRect(62, 108, 15, 15);
+      ctx.fillRect(66, 103, 8, 5);
+      ctx.fillRect(84, 112, 19, 11);
+      ctx.fillRect(89, 106, 9, 6);
+      ctx.fillRect(201, 109, 18, 14);
+      ctx.fillRect(206, 103, 8, 6);
+      ctx.fillStyle = '#f2c779';
+      ctx.fillRect(67, 113, 2, 3);
+      ctx.fillRect(94, 116, 2, 3);
+      ctx.fillRect(208, 114, 2, 3);
+
+      // Mặt hồ, vệt trăng và bờ cỏ.
+      ctx.fillStyle = '#344960';
+      ctx.fillRect(0, 123, 300, 28);
+      ctx.fillStyle = '#53667a';
+      ctx.fillRect(14, 128, 28, 2);
+      ctx.fillRect(76, 135, 18, 2);
+      ctx.fillRect(190, 129, 23, 2);
+      ctx.fillRect(263, 139, 22, 2);
+      ctx.fillStyle = '#c5aa78';
+      ctx.fillRect(235, 123, 10, 2);
+      ctx.fillRect(230, 128, 20, 2);
+      ctx.fillRect(237, 133, 8, 2);
+      ctx.fillStyle = '#293d43';
+      ctx.fillRect(0, 148, 300, 8);
+      ctx.fillStyle = '#375247';
+      ctx.fillRect(0, 156, 300, 44);
+      ctx.fillStyle = '#47634a';
+      ctx.fillRect(0, 156, 300, 3);
+
+      drawPine(17, 145, 1);
+      drawPine(280, 144, 1);
+      drawPine(45, 148, 0.65);
+      drawPine(258, 148, 0.65);
+      drawLantern(38, 137);
+      drawLantern(263, 136);
+
+      // Cỏ và hoa dại ở sát tiền cảnh.
+      ctx.fillStyle = '#63845a';
+      [8, 27, 55, 91, 116, 184, 214, 244, 287].forEach((x, index) => {
+        const y = 166 + (index % 3) * 5;
+        ctx.fillRect(x, y, 2, 7);
+        ctx.fillRect(x - 2, y + 2, 2, 3);
+        ctx.fillRect(x + 2, y + 1, 2, 3);
+      });
+      ctx.fillStyle = '#efb6a5';
+      ctx.fillRect(23, 170, 3, 3);
+      ctx.fillRect(276, 176, 3, 3);
+      ctx.fillStyle = '#f3d58b';
+      ctx.fillRect(106, 179, 3, 3);
+      ctx.fillRect(198, 168, 3, 3);
+    }
+
+    function drawBoy(x, bounce, hugging) {
+      const y = Math.round(bounce);
+      const leftArmY = 128 + y;
+      ctx.fillStyle = 'rgba(12, 20, 29, 0.42)';
+      ctx.fillRect(x - 12, 169, 25, 3);
+
+      // Chân, giày và chiếc áo khoác đỏ.
+      ctx.fillStyle = '#26334b';
+      ctx.fillRect(x - 8, 148 + y, 7, 12);
+      ctx.fillRect(x + 2, 148 + y, 7, 12);
+      ctx.fillStyle = '#c47b57';
+      ctx.fillRect(x - 10, 158 + y, 9, 4);
+      ctx.fillRect(x + 2, 158 + y, 9, 4);
+      ctx.fillStyle = '#492f42';
+      ctx.fillRect(x - 11, 161 + y, 11, 2);
+      ctx.fillRect(x + 1, 161 + y, 11, 2);
+      ctx.fillStyle = '#5c3442';
+      ctx.fillRect(x - 12, 124 + y, 24, 27);
+      ctx.fillStyle = '#d66b59';
+      ctx.fillRect(x - 10, 126 + y, 20, 22);
+      ctx.fillStyle = '#ef9970';
+      ctx.fillRect(x - 2, 128 + y, 4, 12);
+      ctx.fillStyle = '#f4c985';
+      ctx.fillRect(x - 3, 124 + y, 6, 5);
+
+      // Tay chìa về phía bạn khi hai nhân vật tiến lại gần.
+      ctx.fillStyle = '#5c3442';
+      ctx.fillRect(x - 14, leftArmY, 5, 15);
+      ctx.fillRect(x + 9, leftArmY, hugging ? 10 : 5, 5);
+      ctx.fillStyle = '#e9ad82';
+      ctx.fillRect(x - 14, leftArmY + 11, 5, 5);
+      ctx.fillRect(x + (hugging ? 16 : 9), leftArmY + 1, 5, 5);
+
+      // Tóc, khuôn mặt và vài điểm sáng tạo chiều sâu.
+      ctx.fillStyle = '#273047';
+      ctx.fillRect(x - 10, 104 + y, 20, 19);
+      ctx.fillRect(x - 12, 109 + y, 4, 11);
+      ctx.fillRect(x + 8, 108 + y, 4, 11);
+      ctx.fillStyle = '#e9ad82';
+      ctx.fillRect(x - 7, 109 + y, 14, 13);
+      ctx.fillRect(x - 9, 114 + y, 2, 5);
+      ctx.fillRect(x + 7, 114 + y, 2, 5);
+      ctx.fillStyle = '#273047';
+      ctx.fillRect(x - 10, 104 + y, 18, 6);
+      ctx.fillRect(x - 5, 101 + y, 11, 5);
+      ctx.fillRect(x + 4, 108 + y, 5, 3);
+      ctx.fillStyle = '#332b3a';
+      ctx.fillRect(x + 3, 114 + y, 2, 3);
+      ctx.fillStyle = '#c96f70';
+      ctx.fillRect(x + 2, 119 + y, 4, 2);
+      ctx.fillStyle = '#f7cf9b';
+      ctx.fillRect(x - 5, 111 + y, 3, 2);
+    }
+
+    function drawGirl(x, bounce, hugging) {
+      const y = Math.round(-bounce);
+      ctx.fillStyle = 'rgba(12, 20, 29, 0.42)';
+      ctx.fillRect(x - 13, 169, 26, 3);
+
+      // Tất, giày và váy xếp tầng.
+      ctx.fillStyle = '#f0c2a0';
+      ctx.fillRect(x - 8, 148 + y, 6, 12);
+      ctx.fillRect(x + 3, 148 + y, 6, 12);
+      ctx.fillStyle = '#bd6371';
+      ctx.fillRect(x - 10, 158 + y, 9, 4);
+      ctx.fillRect(x + 2, 158 + y, 9, 4);
+      ctx.fillStyle = '#713e59';
+      ctx.fillRect(x - 11, 161 + y, 11, 2);
+      ctx.fillRect(x + 1, 161 + y, 11, 2);
+      ctx.fillStyle = '#793f68';
+      ctx.fillRect(x - 12, 127 + y, 24, 19);
+      ctx.fillStyle = '#e77f9b';
+      ctx.fillRect(x - 10, 128 + y, 20, 15);
+      ctx.fillStyle = '#f49bad';
+      ctx.fillRect(x - 12, 140 + y, 24, 5);
+      ctx.fillStyle = '#ffd091';
+      ctx.fillRect(x - 2, 129 + y, 4, 11);
+
+      // Tay trái đón lấy tay bạn; tay phải buông nhẹ bên váy.
+      ctx.fillStyle = '#793f68';
+      ctx.fillRect(x - (hugging ? 17 : 14), 130 + y, hugging ? 8 : 5, 5);
+      ctx.fillRect(x + 9, 131 + y, 5, 13);
+      ctx.fillStyle = '#f0c2a0';
+      ctx.fillRect(x - (hugging ? 19 : 14), 131 + y, 5, 5);
+      ctx.fillRect(x + 9, 141 + y, 5, 5);
+
+      // Tóc dài ôm khuôn mặt, nơ vàng và gương mặt có má hồng.
+      ctx.fillStyle = '#57334f';
+      ctx.fillRect(x - 11, 104 + y, 22, 20);
+      ctx.fillRect(x - 13, 110 + y, 5, 20);
+      ctx.fillRect(x + 8, 110 + y, 5, 21);
+      ctx.fillRect(x - 10, 125 + y, 4, 8);
+      ctx.fillRect(x + 7, 125 + y, 4, 8);
+      ctx.fillStyle = '#f0c2a0';
+      ctx.fillRect(x - 7, 109 + y, 14, 13);
+      ctx.fillRect(x - 9, 114 + y, 2, 5);
+      ctx.fillRect(x + 7, 114 + y, 2, 5);
+      ctx.fillStyle = '#57334f';
+      ctx.fillRect(x - 10, 104 + y, 19, 6);
+      ctx.fillRect(x - 5, 102 + y, 12, 4);
+      ctx.fillRect(x + 3, 108 + y, 6, 3);
+      ctx.fillStyle = '#392b3d';
+      ctx.fillRect(x - 4, 114 + y, 2, 3);
+      ctx.fillStyle = '#d97983';
+      ctx.fillRect(x + 2, 119 + y, 4, 2);
+      ctx.fillRect(x - 6, 118 + y, 3, 2);
+      ctx.fillStyle = '#f4c54f';
+      ctx.fillRect(x + 5, 101 + y, 6, 4);
+      ctx.fillRect(x + 8, 98 + y, 4, 5);
+    }
+
+    function drawPixelArt() {
+      tickCount++;
+      drawBackground();
+
+      // Hiệu ứng nhích lại gần nhau khi ôm.
+      boyX += (targetBoyX - boyX) * 0.05;
+      girlX += (targetGirlX - girlX) * 0.05;
+      const bounce = Math.sin(tickCount * 0.12) * 1.5;
+      const hugging = targetBoyX > 100;
+
+      drawBoy(Math.round(boyX), bounce, hugging);
+      drawGirl(Math.round(girlX), bounce, hugging);
+
+      if (showFlower) {
+        const flowerX = Math.round(girlX) - 16;
+        const flowerY = Math.round(-bounce);
+        ctx.fillStyle = '#52764c';
+        ctx.fillRect(flowerX, 130 + flowerY, 2, 15);
+        ctx.fillRect(flowerX - 3, 137 + flowerY, 4, 2);
+        ctx.fillStyle = '#f4d36d';
+        ctx.fillRect(flowerX - 5, 122 + flowerY, 6, 6);
+        ctx.fillStyle = '#e98d9e';
+        ctx.fillRect(flowerX - 8, 124 + flowerY, 3, 3);
+        ctx.fillRect(flowerX + 1, 124 + flowerY, 3, 3);
+        ctx.fillRect(flowerX - 4, 119 + flowerY, 3, 3);
+        ctx.fillRect(flowerX - 4, 128 + flowerY, 3, 3);
+      }
+
+      if (showHearts && tickCount % 12 === 0) {
+        const midX = Math.round((boyX + girlX) / 2);
+        const heartY = 100 - ((tickCount * 2) % 32);
+        ctx.fillStyle = '#e97891';
+        ctx.fillRect(midX - 3, heartY, 6, 5);
+        ctx.fillRect(midX - 5, heartY - 3, 4, 4);
+        ctx.fillRect(midX + 1, heartY - 3, 4, 4);
+        ctx.fillStyle = '#ffd1cb';
+        ctx.fillRect(midX - 2, heartY, 2, 2);
+      }
+
+      requestAnimationFrame(drawPixelArt);
+    }
+    drawPixelArt();
+
+    // 3. ĐỒNG BỘ ÂM THANH & CODE TIMELINE
+    const audio = document.getElementById('audioTrack');
+    const timeTracker = document.getElementById('timeTracker');
+    const bubbleBoy = document.getElementById('bubbleBoy');
+    const bubbleGirl = document.getElementById('bubbleGirl');
+
+    function updateState() {
+      const cur = audio.currentTime;
+
+      // Cập nhật text thời gian
+      const curM = Math.floor(cur / 60);
+      const curS = Math.floor(cur % 60).toString().padStart(2, '0');
+      const durM = Math.floor((audio.duration || 46) / 60);
+      const durS = Math.floor((audio.duration || 46) % 60).toString().padStart(2, '0');
+      timeTracker.innerText = `♪ ${curM}:${curS} / ${durM}:${durS}`;
+
+      // Reset trạng thái
+      let activeBoyMsg = null;
+      let activeGirlMsg = null;
+      showFlower = false;
+      showHearts = false;
+      let isHug = false;
+
+      codeLines.forEach((item, index) => {
+        const lineEl = document.getElementById(`line-${index}`);
+        if (item.start !== undefined && cur >= item.start && cur < item.end) {
+          lineEl.classList.add('active');
+          lineEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+          if (item.boy) activeBoyMsg = item.boy;
+          if (item.girl) activeGirlMsg = item.girl;
+          if (item.girlFlower) showFlower = true;
+          if (item.hearts) showHearts = true;
+          if (item.hug) isHug = true;
+        } else {
+          lineEl.classList.remove('active');
+        }
+      });
+
+      // Điều khiển vị trí ôm nhau
+      if (isHug || cur >= 28) {
+        targetBoyX = 135;
+        targetGirlX = 165;
+      } else {
+        targetBoyX = 70;
+        targetGirlX = 230;
+      }
+
+      // Bubble hội thoại
+      if (activeBoyMsg) {
+        bubbleBoy.innerText = activeBoyMsg;
+        bubbleBoy.classList.add('show');
+      } else {
+        bubbleBoy.classList.remove('show');
+      }
+
+      if (activeGirlMsg) {
+        bubbleGirl.innerText = activeGirlMsg;
+        bubbleGirl.classList.add('show');
+      } else {
+        bubbleGirl.classList.remove('show');
+      }
+    }
+
+    audio.addEventListener('timeupdate', updateState);
+
+    // Bấm vào thanh footer hoặc phím Space để Play/Pause
+    function toggleAudio() {
+      if (audio.paused) audio.play();
+      else audio.pause();
+    }
+    document.getElementById('playBtn').addEventListener('click', toggleAudio);
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        toggleAudio();
+      }
+    });
+  </script>
+</body>
+</html>
